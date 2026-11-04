@@ -37,8 +37,11 @@ def main():
     os.environ['SMO_LAYOUT'] = 'android'
     import target as T  # noqa: E402
     shutil.copy2(T.build('gen', 'sdktest_data.h'), os.path.join(pre, 'sdktest_data.h'))
-    for n in SHADERC:
-        shutil.copy2(os.path.join(a.shaderc, n), os.path.join(pre, 'shaderc', n))
+    for n in SHADERC:                    # the NDK's shaderc makes some of these only on some hosts / NDK versions
+        if os.path.exists(os.path.join(a.shaderc, n)):
+            shutil.copy2(os.path.join(a.shaderc, n), os.path.join(pre, 'shaderc', n))
+    if not os.path.exists(os.path.join(pre, 'shaderc', 'libshaderc.a')):
+        raise SystemExit('no libshaderc.a in %s' % a.shaderc)
     at = os.path.join(pre, 'adrenotools')
     shutil.copytree(os.path.join(a.adrenotools, 'include'), os.path.join(at, 'include'))
     for rel in ('build-android/libadrenotools.a', 'build-android/lib/linkernsbypass/liblinkernsbypass.a'):

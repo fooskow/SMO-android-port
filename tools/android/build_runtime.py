@@ -99,8 +99,9 @@ def main():
     if len(game) < 200:
         raise SystemExit('only %d lifted objects in %s: run tools/android/build_game.py --abi %s first' % (len(game), game_dir, abi))
     sc = os.environ.get('SHADERC_LIBS') or os.path.join(os.path.expanduser('~'), 'smo-shaderc', 'obj', 'local', abi)
-    sclibs = [os.path.join(sc, n) for n in SHADERC_ORDER]
-    missing = [p for p in sclibs if not os.path.exists(p)]
+    # the NDK's shaderc build makes some of the component libraries only on some hosts / NDK versions: the ones there
+    sclibs = [os.path.join(sc, n) for n in SHADERC_ORDER if os.path.exists(os.path.join(sc, n))]
+    missing = [p for p in [os.path.join(sc, n) for n in ('libshaderc.a', 'libglslang.a', 'libSPIRV-Tools.a')] if not os.path.exists(p)]
     if missing:
         raise SystemExit('shaderc libraries missing (%s): run tools/android/build_shaderc.py' % ', '.join(os.path.basename(m) for m in missing))
     rsp = os.path.join(lib_dir, 'link.rsp')
