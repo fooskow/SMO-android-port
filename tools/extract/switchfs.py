@@ -13,7 +13,10 @@ import hashlib
 import os
 import struct
 
-from Crypto.Cipher import AES
+try:
+    from Crypto.Cipher import AES
+except ImportError:          # the on-device build (fork for the AYN Thor Max) starts from an extracted ExeFS: no decryption
+    AES = None
 
 CONTENT_TYPES = {0: 'Program', 1: 'Meta', 2: 'Control', 3: 'Manual', 4: 'Data', 5: 'PublicData'}
 
@@ -420,9 +423,53 @@ def sdk_version_str(v):
 
 
 # ------------------------------------------------------------------------------------------------------------- NSO
+def lz4_block_decompress(src, uncompressed_size):
+    """LZ4 block format, in Python (for a Python without the lz4 package: the on-device build)."""
+    out = bytearray()
+    i, n = 0, len(src)
+    while i < n:
+        token = src[i]
+        i += 1
+        lit = token >> 4
+        if lit == 15:
+            while True:
+                b = src[i]
+                i += 1
+                lit += b
+                if b != 255:
+                    break
+        out += src[i:i + lit]
+        i += lit
+        if i >= n:
+            break
+        off = src[i] | src[i + 1] << 8
+        i += 2
+        ml = token & 15
+        if ml == 15:
+            while True:
+                b = src[i]
+                i += 1
+                ml += b
+                if b != 255:
+                    break
+        ml += 4
+        start = len(out) - off
+        if off >= ml:
+            out += out[start:start + ml]
+        else:                                   # an overlapping copy: repeat the period
+            pat = bytes(out[start:])
+            out += (pat * (ml // off + 1))[:ml]
+    if len(out) != uncompressed_size:
+        raise ValueError('lz4: %d bytes, expected %d' % (len(out), uncompressed_size))
+    return bytes(out)
+
+
 def nso_info(d):
     """Segments (decompressed), build id and integrity of an NSO."""
-    import lz4.block
+    try:
+        from lz4.block import decompress as lz4_decompress
+    except ImportError:      # the on-device build: the pure-Python decoder below
+        lz4_decompress = lz4_block_decompress
     assert d[:4] == b'NSO0'
     flags = struct.unpack_from('<I', d, 12)[0]
     segs = []
@@ -431,7 +478,7 @@ def nso_info(d):
         csz = struct.unpack_from('<I', d, cso)[0]
         raw = d[foff:foff + csz]
         if flags & (1 << i):
-            raw = lz4.block.decompress(raw, uncompressed_size=size)
+            raw = lz4_decompress(raw, uncompressed_size=size)
         assert len(raw) == size
         ok = hashlib.sha256(raw).digest() == d[0xA0 + i * 0x20:0xC0 + i * 0x20]
         segs.append({'vaddr': moff, 'size': size, 'data': raw, 'sha_ok': ok})

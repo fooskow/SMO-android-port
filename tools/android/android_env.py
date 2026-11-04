@@ -11,6 +11,12 @@ API = 30                                  # minSdk: Vulkan 1.1+ loader, AAudio, 
 ABIS = {'arm64-v8a': 'aarch64-linux-android', 'x86_64': 'x86_64-linux-android'}
 
 
+# Fork for the AYN Thor Max: the on-device build. SMO_ONDEVICE_TC=<toolchain prefix> (tools/ondevice/fetch_toolchain.py,
+# unpacked by the app): clang, clang++, llvm-* come from <prefix>/bin, the NDK's sysroot from <prefix>/sysroot, and the
+# NDK sources the runtime needs (native_app_glue, shaderc's header) from <prefix>/ndk, which stands in for the NDK.
+ONDEVICE = os.environ.get('SMO_ONDEVICE_TC')
+
+
 def sdk():
     for p in (os.environ.get('ANDROID_HOME'), os.environ.get('ANDROID_SDK_ROOT'),
               os.path.join(os.path.dirname(REPO), 'toolchain', 'sdk')):
@@ -20,6 +26,8 @@ def sdk():
 
 
 def ndk():
+    if ONDEVICE:
+        return os.path.join(ONDEVICE, 'ndk')
     p = os.environ.get('ANDROID_NDK')
     if p and os.path.isdir(p):
         return p
@@ -30,6 +38,8 @@ def ndk():
 
 
 def llvm_bin(tool):
+    if ONDEVICE:
+        return os.path.join(ONDEVICE, 'bin', tool)
     host = 'windows-x86_64' if os.name == 'nt' else ('darwin-x86_64' if sys.platform == 'darwin' else 'linux-x86_64')
     exe = '.exe' if os.name == 'nt' else ''
     return os.path.join(ndk(), 'toolchains', 'llvm', 'prebuilt', host, 'bin', tool + exe)
@@ -54,7 +64,8 @@ def target_flags(abi):
     # (the instruction set stays ARMv8.2-A: tuning changes scheduling only, never which instructions are used).
     # SMO_MTUNE=<cpu> overrides it.
     extra = ['-march=armv8.2-a', '-mtune=' + os.environ.get('SMO_MTUNE', 'cortex-a715')] if abi == 'arm64-v8a' else []
-    return ['--target=%s%d' % (ABIS[abi], API)] + extra + prefix_maps()
+    sysroot = ['--sysroot=' + os.path.join(ONDEVICE, 'sysroot')] if ONDEVICE else []
+    return ['--target=%s%d' % (ABIS[abi], API)] + sysroot + extra + prefix_maps()
 
 
 def prefix_maps():

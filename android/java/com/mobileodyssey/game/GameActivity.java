@@ -33,6 +33,25 @@ public class GameActivity extends NativeActivity {
     native void nativeLoadState(long[] out);               /* android_main.c: frames shown, pipelines made ahead, of how many, all made */
     private Dialog exitDialog;
 
+    /* Fork for the AYN Thor Max: the game library is not in the APK but built on the device (BuildService), in
+     * files/game/libsmo.so. NativeActivity.onCreate asks its class loader to find "smo" (the manifest's lib_name): this
+     * loader answers with the built file, and for everything else (classes, other libraries) asks the app's own. */
+    private ClassLoader gameLoader;
+    @Override public ClassLoader getClassLoader() {
+        if (gameLoader == null) {
+            final ClassLoader app = super.getClassLoader();
+            final java.io.File lib = Builder.gameLib(this);
+            gameLoader = new dalvik.system.PathClassLoader("", getApplicationInfo().nativeLibraryDir, app) {
+                @Override public String findLibrary(String name) {
+                    if ("smo".equals(name) && lib.isFile()) return lib.getAbsolutePath();
+                    String p = super.findLibrary(name);
+                    return p != null ? p : (app instanceof dalvik.system.BaseDexClassLoader ? ((dalvik.system.BaseDexClassLoader) app).findLibrary(name) : null);
+                }
+            };
+        }
+        return gameLoader;
+    }
+
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);      /* a first start, a cutscene, a controller: no touches for minutes */

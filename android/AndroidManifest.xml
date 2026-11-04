@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Super Mario Odyssey, Android port (tools/android/build_apk.py). The game is android.app.NativeActivity running
-     libsmo.so (runtime/android/android_main.c). The APK holds no game data: the player's own files are pushed into the
+     libsmo.so (runtime/android/android_main.c), which this fork builds on the device (BuildService) instead of carrying it. The APK holds no game data: the player's own files are pushed into the
      app's external files folder (tools/android/push_data.py). A private build for the owner of the game. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.mobileodyssey.game"
     android:versionCode="1"
     android:versionName="0.1.0-thor">
 
-    <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
+    <!-- Fork for the AYN Thor Max: targetSdk 28. The game is built ON the device (BuildService): the app runs the compiler
+         it carries from its own files, which Android allows to apps that target 28 (as Termux does), not to newer ones. -->
+    <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="28" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Vulkan 1.3: what the renderer asks of a device (runtime/nvn_vk.c) -->
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x403000" android:required="true" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
@@ -56,5 +61,7 @@
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density">
             <meta-data android:name="android.app.lib_name" android:value="smo" />
         </activity>
+        <!-- the on-device build of the game library (BuildService.java): an hour or more, in the foreground -->
+        <service android:name="com.mobileodyssey.game.BuildService" android:exported="false" />
     </application>
 </manifest>

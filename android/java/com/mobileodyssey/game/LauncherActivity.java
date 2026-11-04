@@ -50,7 +50,7 @@ import java.util.zip.ZipInputStream;
 public class LauncherActivity extends Activity {
     static final int BG = 0xFF101318, CARD = 0xFF1B2029, CARD2 = 0xFF242A35, TEXT = 0xFFECEFF4, DIM = 0xFF9AA3B2,
                      ACCENT = 0xFFE5393B, ACCENT2 = 0xFF3B82F6, OK = 0xFF34C77B, WARN = 0xFFF5A524;
-    static final int REQ_GAME = 1, REQ_DRIVER = 2, REQ_MOD = 3, REQ_KEYS = 4, REQ_PACKAGE = 5, REQ_SAVE_OUT = 6, REQ_SAVE_IN = 7, REQ_LOGS = 8;
+    static final int REQ_GAME = 1, REQ_DRIVER = 2, REQ_MOD = 3, REQ_KEYS = 4, REQ_PACKAGE = 5, REQ_SAVE_OUT = 6, REQ_SAVE_IN = 7, REQ_LOGS = 8, REQ_EXEFS = 9, REQ_ROMFS = 10;
     java.util.Map<String, byte[]> keys;                  /* the parsed prod.keys while an NSP / XCI import runs (the file stays in keysFile()) */
     static final String[] TABS = {"Game", "Graphics", "Controls", "Advanced", "Mods"};
 
@@ -145,9 +145,11 @@ public class LauncherActivity extends Activity {
         String rsv = g.get("resolution_scale", "auto");
         card.addView(statusLine("Resolution", "auto".equalsIgnoreCase(rsv) ? ("handheld".equalsIgnoreCase(g.get("console_mode", "docked")) ? "1280x720 (console)" : "1920x1080 (console)") : Math.round(parse(rsv, 1f) * 100) + "% of the game's size", DIM));
         card.addView(space(16));
-        Button play = button(have ? "▶  Play" : "Import game files first", have ? ACCENT : CARD2);
+        boolean built = Builder.built(this), current = built && Builder.current(this), ready = have && current;
+        Button play = button(ready ? "▶  Play" : !have ? "Import game files first" : !built ? "Build the game first (below)" : "Build again after the update (below)",
+                ready ? ACCENT : CARD2);
         play.setTextSize(18);
-        play.setEnabled(have);
+        play.setEnabled(ready);
         play.setOnClickListener(v -> startActivity(new Intent(this, GameActivity.class)));
         card.addView(play, new LinearLayout.LayoutParams(-1, dp(56)));
         content.addView(card);
@@ -190,7 +192,18 @@ public class LauncherActivity extends Activity {
         imp.addView(pick, new LinearLayout.LayoutParams(-1, dp(48)));
         imp.addView(space(6));
         imp.addView(text("Folder: " + root.getAbsolutePath(), 11, DIM, false));
+        imp.addView(space(10));
+        imp.addView(text("Or the folders you extracted yourself (ExeFS and RomFS of 1.0.0, e.g. with hactool):", 12, DIM, false));
+        imp.addView(space(4));
+        Button ex = button("Import ExeFS folder…", CARD2);
+        ex.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_EXEFS));
+        imp.addView(ex, new LinearLayout.LayoutParams(-1, dp(48)));
+        imp.addView(space(6));
+        Button rf = button("Import RomFS folder…", CARD2);
+        rf.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_ROMFS));
+        imp.addView(rf, new LinearLayout.LayoutParams(-1, dp(48)));
         content.addView(imp);
+        content.addView(buildCard(have));
 
         LinearLayout sv = card();
         sv.addView(header("Save data"));
@@ -521,6 +534,8 @@ public class LauncherActivity extends Activity {
             importPackage(u);
         }
         else if (req == REQ_GAME) importGame(u);
+        else if (req == REQ_EXEFS) importExefs(u);
+        else if (req == REQ_ROMFS) importRomfs(u);
         else if (req == REQ_DRIVER) background("Installing the driver…", () -> unzip(u, new File(root, "driver"), true), () -> show(3));
         else if (req == REQ_MOD) background("Installing the mod…", () -> unzip(u, new File(new File(root, "mods"), modName(u)), true), () -> show(4));
         else if (req == REQ_SAVE_OUT) background("Exporting the save…", () -> exportSave(u), () -> toast("Save exported"));
@@ -707,6 +722,108 @@ public class LauncherActivity extends Activity {
         String n = u.getLastPathSegment();
         n = n == null ? "mod" : n.substring(n.lastIndexOf('/') + 1).replaceAll("(?i)\\.zip$", "").replaceAll("[^A-Za-z0-9 _.-]", "_");
         return n.isEmpty() ? "mod" : n;
+    }
+
+    /* ------------------------------------------------------------ the on-device build (fork for the AYN Thor Max) */
+    final android.os.Handler poll = new android.os.Handler(android.os.Looper.getMainLooper());
+    LinearLayout buildCard(boolean have) {
+        LinearLayout c = card();
+        c.addView(header("Build the game on this device"));
+        boolean exefs = new File(root, "dump/base/exefs/main").isFile();
+        String st = Builder.readState(this);
+        boolean run = BuildService.running || (st.equals("running") && isServiceRunning());
+        c.addView(text("The app holds no game code: it makes it from YOUR ExeFS with the compiler inside the app. Once, about "
+                + "an hour or more on a Snapdragon 8 Gen 2; it goes on with the screen off. Keep the device on the charger "
+                + "and cool. After an app update only the changed part is built again (minutes).", 12, DIM, false));
+        c.addView(space(8));
+        c.addView(statusLine("ExeFS", exefs ? "imported" : "missing", exefs ? OK : WARN));
+        String what = run ? "building…" : Builder.built(this) ? (Builder.current(this) ? "built" : "built by an older version") : st.startsWith("failed") ? "failed" : "not built";
+        c.addView(statusLine("Game library", what, run ? ACCENT2 : what.equals("built") ? OK : WARN));
+        if (run) {
+            c.addView(space(4));
+            c.addView(text(Builder.progress(this), 12, TEXT, false));
+            poll.removeCallbacksAndMessages(null);
+            poll.postDelayed(() -> { if (tab == 0) show(0); }, 3000);
+        } else if (st.startsWith("failed")) {
+            c.addView(space(4));
+            c.addView(text(st, 12, WARN, false));
+        }
+        c.addView(space(8));
+        Button go = button(run ? "Building…" : Builder.built(this) ? "Build again" : "Build the game", run || !exefs ? CARD2 : ACCENT2);
+        go.setEnabled(!run && exefs);
+        go.setOnClickListener(v -> {
+            Builder.writeState(this, "running");
+            startForegroundService(new Intent(this, BuildService.class));
+            show(0);
+        });
+        c.addView(go, new LinearLayout.LayoutParams(-1, dp(48)));
+        c.addView(space(6));
+        Button lg = button("Build log", CARD2);
+        lg.setOnClickListener(v -> {
+            String t;
+            try { t = new String(readAll(new FileInputStream(Builder.log(this))), StandardCharsets.UTF_8); } catch (Exception e) { t = "(no log yet)"; }
+            if (t.length() > 20000) t = "…" + t.substring(t.length() - 20000);
+            TextView tv = text(t, 11, TEXT, false);
+            tv.setTypeface(android.graphics.Typeface.MONOSPACE);
+            tv.setTextIsSelectable(true);
+            ScrollView sv = new ScrollView(this);
+            sv.addView(tv);
+            sv.post(() -> sv.fullScroll(View.FOCUS_DOWN));
+            new AlertDialog.Builder(this).setTitle("Build log").setView(sv).setPositiveButton("OK", null).show();
+        });
+        c.addView(lg, new LinearLayout.LayoutParams(-1, dp(48)));
+        return c;
+    }
+    boolean isServiceRunning() {
+        android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        for (android.app.ActivityManager.RunningServiceInfo i : am.getRunningServices(50))
+            if (i.service.getClassName().equals(BuildService.class.getName())) return true;
+        return false;
+    }
+
+    /* The ExeFS: its files into dump/base/exefs, each NSO also as an ELF into dump/base/elf (what the game reads). */
+    void importExefs(Uri tree) {
+        background("Importing the ExeFS…", () -> {
+            File ex = new File(root, "dump/base/exefs"), elf = new File(root, "dump/base/elf");
+            deleteTree(ex);
+            ex.mkdirs();
+            elf.mkdirs();
+            copyTree(tree, DocumentsContract.getTreeDocumentId(tree), ex, 1);
+            File main = findFile(ex, "main");
+            if (main == null || findFile(ex, "main.npdm") == null) throw new java.io.IOException("no main and main.npdm in that folder: pick the ExeFS folder itself");
+            File dir = main.getParentFile();
+            if (!dir.equals(ex)) {                                  /* the files were one folder deeper */
+                for (File f : dir.listFiles()) f.renameTo(new File(ex, f.getName()));
+            }
+            for (File f : ex.listFiles()) {
+                if (!f.isFile()) continue;
+                byte[] d = readAll(new FileInputStream(f));
+                if (d.length > 4 && d[0] == 'N' && d[1] == 'S' && d[2] == 'O' && d[3] == '0')
+                    try (OutputStream o = new FileOutputStream(new File(elf, f.getName() + ".elf"))) { o.write(GameImporter.nsoToElf(d)); }
+            }
+        }, () -> { toast(new File(root, "dump/base/exefs/main.npdm").exists() ? "ExeFS imported" : "ExeFS not found in that folder"); show(0); });
+    }
+    void importRomfs(Uri tree) {
+        background("Copying the RomFS (5 GB, some minutes)…", () -> {
+            File rf = new File(root, "romfs");
+            deleteTree(rf);
+            rf.mkdirs();
+            copyTree(tree, DocumentsContract.getTreeDocumentId(tree), rf, 1);
+            String[] k = rf.list();
+            if (k != null && k.length == 1 && new File(rf, k[0]).isDirectory() && k[0].equalsIgnoreCase("romfs")) {   /* picked the folder above it */
+                File inner = new File(rf, k[0]), tmp = new File(root, "romfs.tmp");
+                inner.renameTo(tmp);
+                rf.delete();
+                tmp.renameTo(rf);
+            }
+        }, () -> { toast("RomFS imported"); show(0); });
+    }
+    static File findFile(File dir, String name) {
+        File f = new File(dir, name);
+        if (f.isFile()) return f;
+        File[] k = dir.listFiles();
+        if (k != null) for (File c : k) if (c.isDirectory()) { File r = findFile(c, name); if (r != null) return r; }
+        return null;
     }
 
     /* ------------------------------------------------------------ state */

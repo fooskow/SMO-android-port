@@ -1,0 +1,81 @@
+# Fork for the AYN Thor Max: the APK, built here with NO game code in it. It carries the compiler (Termux's clang, lld
+# and Python with the NDK's sysroot) and the build's scripts, runtime sources and prebuilt libraries; the game library
+# is built on the device from the player's own ExeFS (BuildService). Every push to main publishes it as a Release.
+name: release
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'android/probe/**', '.github/workflows/probe.yml', '.github/workflows/check.yml']
+permissions:
+  contents: write
+concurrency: { group: release, cancel-in-progress: true }
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      NDK_VER: 28.2.13676358
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;$NDK_VER" "cmake;3.31.6" > /dev/null
+          echo "ANDROID_NDK=$ANDROID_HOME/ndk/$NDK_VER" >> "$GITHUB_ENV"
+      - name: Python packages
+        run: python3 -m pip install --quiet pillow
+      - name: shaderc cache
+        uses: actions/cache@v4
+        with: { path: ~/smo-shaderc, key: "shaderc-${{ env.NDK_VER }}-v1" }
+      - name: shaderc (arm64, once)
+        run: |
+          [ -f ~/smo-shaderc/obj/local/arm64-v8a/libshaderc.a ] || python3 tools/android/build_shaderc.py
+      - name: libadrenotools cache
+        uses: actions/cache@v4
+        with: { path: /tmp/libadrenotools, key: "adrenotools-${{ env.NDK_VER }}-v1" }
+      - name: libadrenotools (arm64, once)
+        run: |
+          AT=/tmp/libadrenotools; C="$ANDROID_HOME/cmake/3.31.6/bin"
+          if [ ! -f "$AT/build-android/libadrenotools.a" ]; then
+            rm -rf "$AT"; git clone --recursive --depth 1 https://github.com/bylaws/libadrenotools "$AT"
+            "$C/cmake" -S "$AT" -B "$AT/build-android" -G Ninja -DCMAKE_MAKE_PROGRAM="$C/ninja" \
+              -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" -DANDROID_ABI=arm64-v8a \
+              -DANDROID_PLATFORM=android-30 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
+            "$C/cmake" --build "$AT/build-android"
+          fi
+          ls "$AT/build-android" "$AT/build-android/src/hook"
+      - name: Toolchain and bundle (the APK's assets)
+        run: |
+          mkdir -p /tmp/assets
+          python3 tools/ondevice/fetch_toolchain.py --arch aarch64 --ndk "$ANDROID_NDK" --out /tmp/tc --tar /tmp/assets/tc.tar.gz
+          python3 tools/ondevice/make_bundle.py --shaderc ~/smo-shaderc/obj/local/arm64-v8a --adrenotools /tmp/libadrenotools --out /tmp/assets/builder.tar.gz
+      - name: On-device toolchain compiles the runtime's Android sources (syntax and types, on the runner)
+        run: |
+          # Termux's aarch64 clang cannot run here; the NDK's clang with the same sysroot and flags checks the sources.
+          CC="$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
+          for f in runtime/android/*.c runtime/gfx_options.c; do
+            "$CC" --target=aarch64-linux-android30 --sysroot=/tmp/tc/sysroot -fsyntax-only -D_GNU_SOURCE -w -Iruntime -Iruntime/android \
+              -I/tmp/tc/ndk/sources/android/native_app_glue -I/tmp/tc/ndk/sources/third_party/shaderc/libshaderc/include \
+              -DSMO_ADRENOTOOLS -I/tmp/libadrenotools/include "$f" || echo "::warning::$f needs generated headers or failed"
+          done
+      - name: APK
+        run: |
+          mkdir -p build/android
+          cp signing/thor-fork.keystore build/android/release.keystore
+          cp signing/thor-fork.keystore.txt build/android/release.keystore.txt
+          SMO_APK_ASSETS=/tmp/assets SMO_APK_NO_GAME=1 ADRENOTOOLS=/tmp/libadrenotools \
+            python3 tools/android/build_apk.py --abi arm64-v8a --release
+          ls -la build/android/*.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: odyssey-thor-apk, path: build/android/odyssey-*.apk, retention-days: 30 }
+      - name: Release
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          APK=$(ls build/android/odyssey-*.apk | head -1)
+          TAG="thor-build-${{ github.run_number }}"
+          gh release create "$TAG" "$APK#Odyssey-Thor.apk" --repo "${{ github.repository }}" --target "${{ github.sha }}" --latest \
+            --title "Thor build ${{ github.run_number }}" \
+            --notes "APK per AYN Thor Max. Non contiene codice del gioco: il gioco si compila sul Thor dal tuo ExeFS (vedi THOR_MAX.md). Commit ${{ github.sha }}."

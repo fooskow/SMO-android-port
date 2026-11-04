@@ -191,6 +191,10 @@ def main():
                 print('patched %s: %s -> %s' % (n, s0.decode(), s1.decode()))
                 i = b.find(old, i + 1)
             open(f, 'wb').write(b)
+    # The NDK sources the runtime build takes from the NDK (tools/android/build_runtime.py): the app's NDK stand-in.
+    for rel in ('sources/android/native_app_glue', 'sources/third_party/shaderc/libshaderc/include'):
+        if os.path.isdir(os.path.join(a.ndk, rel)):
+            shutil.copytree(os.path.join(a.ndk, rel), os.path.join(a.out, 'ndk', rel))
     # multiprocessing.Pool without semaphores (tools/ondevice/forkpool.py) as the interpreter's sitecustomize.
     pyver = next(n for n in os.listdir(os.path.join(a.out, 'lib')) if re.match(r'python3\.\d+$', n))
     sp = os.path.join(a.out, 'lib', pyver, 'site-packages')

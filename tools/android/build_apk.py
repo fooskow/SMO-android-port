@@ -80,7 +80,9 @@ def main():
     flat = os.path.join(out_dir, 'res.zip')
     run([tool('aapt2'), 'compile', '--dir', res, '-o', flat])
     run([tool('aapt2'), 'link', '-o', base, '-I', os.path.join(A.sdk(), 'platforms', PLATFORM, 'android.jar'), '-R', flat,
-         '--manifest', manifest, '--min-sdk-version', str(A.API), '--target-sdk-version', '35'])
+         '--manifest', manifest, '--min-sdk-version', str(A.API), '--target-sdk-version', '28'] +
+        # fork for the AYN Thor Max: SMO_APK_ASSETS=<folder>: the on-device build's toolchain and bundle (stored as they are)
+        (['-A', os.environ['SMO_APK_ASSETS'], '-0', 'gz'] if os.environ.get('SMO_APK_ASSETS') else []))
     dex = java_dex(env)                              # the launcher (android/java): javac, then d8
     with zipfile.ZipFile(base, 'a', zipfile.ZIP_DEFLATED, compresslevel=6) as z:
         if dex:
@@ -88,22 +90,29 @@ def main():
             print('classes.dex: the launcher (%d KB)' % (os.path.getsize(dex) // 1024))
         for abi in abis:
             lib = A.build_dir(abi, 'lib', 'libsmo.so')
-            if not os.path.exists(lib):
+            no_game = os.environ.get('SMO_APK_NO_GAME') == '1'      # fork: the game library is built on the device
+            if no_game:
+                lib = None
+            if lib and not os.path.exists(lib):
                 raise SystemExit('%s missing: run tools/android/build_runtime.py --abi %s' % (lib, abi))
-            stripped = lib + '.stripped'
-            run([A.llvm_bin('llvm-strip'), '--strip-unneeded', '-o', stripped, lib])
-            z.write(stripped, 'lib/%s/libsmo.so' % abi)
+            if lib:
+                stripped = lib + '.stripped'
+                run([A.llvm_bin('llvm-strip'), '--strip-unneeded', '-o', stripped, lib])
+                z.write(stripped, 'lib/%s/libsmo.so' % abi)
             hooks = os.path.join(os.environ.get('ADRENOTOOLS') or os.path.join(os.path.dirname(A.REPO), 'external', 'libadrenotools'), 'build-android', 'src', 'hook')
             if abi == 'arm64-v8a' and os.path.isdir(hooks):          # libadrenotools' hooks (a custom Vulkan driver, android_driver.c)
                 for n in sorted(os.listdir(hooks)):
                     if n.endswith('.so'):
                         z.write(os.path.join(hooks, n), 'lib/%s/%s' % (abi, n))
                         print('%s: %s (adrenotools hook)' % (abi, n))
-            print('%s: libsmo.so %.0f MB (stripped from %.0f MB)' % (abi, os.path.getsize(stripped) / 2 ** 20, os.path.getsize(lib) / 2 ** 20))
+            if lib:
+                print('%s: libsmo.so %.0f MB (stripped from %.0f MB)' % (abi, os.path.getsize(stripped) / 2 ** 20, os.path.getsize(lib) / 2 ** 20))
+            else:
+                print('%s: no libsmo.so (built on the device)' % abi)
     if release:                                      # nothing in a release names the builder: no home folder in any file
         user = os.path.basename(os.path.expanduser('~')).lower().encode()
         with zipfile.ZipFile(base) as z:
-            bad = [n for n in z.namelist() if any(p + user in z.read(n).lower() for p in (b'users/', b'users' + bytes([92]), b'home/'))]
+            bad = [n for n in z.namelist() if not n.startswith('assets/') and any(p + user in z.read(n).lower() for p in (b'users/', b'users' + bytes([92]), b'home/'))]
         if bad:
             raise SystemExit('the home folder of whoever built it is named in %s: rebuild them with android_env.prefix_maps()' % ', '.join(bad))
         print('release: no file names the home folder of whoever built it')
