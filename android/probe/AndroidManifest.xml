@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Toolchain probe (fork for the AYN Thor Max, milestone 1). targetSdk 28 (set by build_probe.py): an app that targets
+     28 may run programs it wrote into its own files, which the on-device build needs (clang, python). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.thorbuild.probe"
+    android:versionCode="1"
+    android:versionName="probe">
+    <application android:label="Thor toolchain probe" android:debuggable="true" android:extractNativeLibs="true">
+        <activity android:name=".ProbeActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -1,0 +1,48 @@
+# Milestone 1 of the on-device build (fork for the AYN Thor Max): does Termux's clang + lld + Python, carried in an APK,
+# compile and load a library and run the lifter's Python INSIDE an app? Tested on an x86_64 emulator (the same Android
+# rules as the Thor; KVM makes it fast). The aarch64 toolchain for the Thor is packed too and kept as an artifact.
+name: probe
+on:
+  workflow_dispatch:
+  push:
+    paths: ['tools/ondevice/**', 'android/probe/**', '.github/workflows/probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358" > /dev/null
+      - name: Toolchains (x86_64 for the emulator, aarch64 for the Thor)
+        run: |
+          NDK="$ANDROID_HOME/ndk/28.2.13676358"
+          python3 tools/ondevice/fetch_toolchain.py --arch x86_64 --ndk "$NDK" --out /tmp/tc-x86_64 --tar /tmp/tc-x86_64.tar.gz
+          python3 tools/ondevice/fetch_toolchain.py --arch aarch64 --ndk "$NDK" --out /tmp/tc-aarch64 --tar /tmp/tc-aarch64.tar.gz
+          ls -la /tmp/tc-x86_64/bin | head -40
+      - name: Probe APKs
+        run: |
+          python3 tools/ondevice/build_probe.py --tc /tmp/tc-x86_64.tar.gz --out /tmp/probe-x86_64.apk
+          python3 tools/ondevice/build_probe.py --tc /tmp/tc-aarch64.tar.gz --out /tmp/probe-aarch64.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-aarch64
+          path: /tmp/probe-aarch64.apk
+          retention-days: 14
+      - name: KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Run the probe on an emulator (Android 13, the Thor's version)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096
+          script: bash tools/ondevice/run_probe.sh /tmp/probe-x86_64.apk
