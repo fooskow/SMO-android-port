@@ -191,6 +191,13 @@ def main():
                 print('patched %s: %s -> %s' % (n, s0.decode(), s1.decode()))
                 i = b.find(old, i + 1)
             open(f, 'wb').write(b)
+    # multiprocessing.Pool without semaphores (tools/ondevice/forkpool.py) as the interpreter's sitecustomize.
+    pyver = next(n for n in os.listdir(os.path.join(a.out, 'lib')) if re.match(r'python3\.\d+$', n))
+    sp = os.path.join(a.out, 'lib', pyver, 'site-packages')
+    os.makedirs(sp, exist_ok=True)
+    shutil.copy2(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'forkpool.py'), os.path.join(sp, 'forkpool.py'))
+    with open(os.path.join(sp, 'sitecustomize.py'), 'w') as f:
+        f.write('import forkpool\nforkpool.install()\n')
     size = sum(os.path.getsize(os.path.join(d, n)) for d, _, ns in os.walk(a.out) for n in ns if not os.path.islink(os.path.join(d, n)))
     print('toolchain: %.0f MB in %s' % (size / 2 ** 20, a.out))
     if a.tar:

@@ -86,6 +86,7 @@ public class ProbeActivity extends Activity {
             rc = exec(tc, work, tc + "/bin/python3", "-c",
                     "import sys, struct, zlib, json, bisect, csv, collections, concurrent.futures, multiprocessing as m\n"
                     + "print('python', sys.version.split()[0], 'prefix', sys.prefix)\n"
+                    + "print('pool class', m.Pool.__name__)\n"
                     + "with m.Pool(2) as p: r = p.map(abs, [-1, -2, -3])\n"
                     + "print('pool', r)\n"
                     + "assert r == [1, 2, 3]\n"
