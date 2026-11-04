@@ -229,7 +229,7 @@ public class LauncherActivity extends Activity {
     /* Fork for the AYN Thor Max: the settings that suit it, written in one go (also over a graphics.ini from an older
      * install, which keeps its own values otherwise). */
     static final String[][] THOR_MAX = {
-            {"frame_rate", "30"}, {"fps_cap", "60"}, {"boost", "on"}, {"shader_wait", "hold"},
+            {"frame_rate", "30"}, {"fps_cap", "60"}, {"boost", "auto"}, {"shader_wait", "hold"},
             {"console_mode", "docked"}, {"resolution_scale", "auto"},
             {"anti_aliasing", "fxaa"}, {"sharpening", "25"}, {"anisotropic_filtering", "4"},
             {"vsync", "clock"}, {"driver", "custom"}};
@@ -242,7 +242,7 @@ public class LauncherActivity extends Activity {
         t.addView(header("AYN Thor Max"));
         boolean on = isThorMax(g);
         t.addView(statusLine("Recommended set", on ? "in use" : "changed", on ? OK : DIM));
-        t.addView(text("30 fps at full game speed, CPU boost always on (the fan takes the heat), docked at the screen's own "
+        t.addView(text("30 fps at full game speed, CPU boost only while frames are late and never once the device is warm, docked at the screen's own "
                 + "1920x1080, FXAA with 25% sharpening, 4x anisotropic filtering, the custom driver when one is installed "
                 + "(Mesa Turnip runs this game clearly faster than the stock Adreno driver). In the AYN menu set the "
                 + "performance mode to its highest and the fan to a strong curve.", 12, DIM, false));
@@ -259,7 +259,7 @@ public class LauncherActivity extends Activity {
                 "60 = no limit. WARNING: the game advances one step per frame, so any limit below 60 makes it run in slow "
                 + "motion (at 40, two thirds of its speed). Only \"30 fps, full speed\" above keeps normal speed; when it is "
                 + "chosen, this limit is not used."));
-        c.addView(choice(g, "boost", "CPU boost", new String[]{"auto", "on", "off"}, new String[]{"Auto", "Always", "Off"}, "on",
+        c.addView(choice(g, "boost", "CPU boost", new String[]{"auto", "on", "off"}, new String[]{"Auto", "Always", "Off"}, "auto",
                 "Keeps the phone's CPU clocks up so heavy scenes hold the frame rate. Auto: only while frames are late. Always: everywhere, warmer."));
         c.addView(choice(g, "shader_wait", "New shaders", new String[]{"hold", "skip"}, new String[]{"Wait", "Skip until ready"}, "hold",
                 "Skip avoids a stutter the first time an effect appears; the effect is missing for a moment instead."));

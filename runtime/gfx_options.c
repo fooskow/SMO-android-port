@@ -14,11 +14,12 @@
 
 /* Fork for the AYN Thor Max (Snapdragon 8 Gen 2 / Adreno 740, 1920x1080 screen, active cooling): on Android the file is
  * first written with the set for that device: the 30 fps mode (full game speed: the CPU, not the GPU, limits the frame
- * rate, and 60 is out of reach on this chip), the CPU boost always on (the fan carries the extra heat), docked at the
+ * rate, and 60 is out of reach on this chip), the CPU boost on while frames are late and off
+ * when the device gets warm (android_perf.c), docked at the
  * screen's own 1920x1080, FXAA with light sharpening, 4x anisotropic filtering. Other platforms keep the upstream values. */
 #ifdef __ANDROID__
 #define GFX_DEF_FRAME_RATE "30"
-#define GFX_DEF_BOOST "on"
+#define GFX_DEF_BOOST "auto"
 #define GFX_DEF_AA "fxaa"
 #define GFX_DEF_SHARPEN "25"
 #define GFX_DEF_ANISO "4"
@@ -166,7 +167,7 @@ static void opt_load(void) {
     memset(o, 0, sizeof *o);
     o->width = 1280; o->height = 720; o->scale = 0.0f; o->window_mode = 3; o->fps_counter = 1; o->dynres = 1; o->boost = 1;
 #ifdef __ANDROID__
-    o->fps30 = 1; o->boost = 2; o->fxaa = 1; o->sharpen = 0.25f; o->aniso = 4;     /* the Thor Max set (above) when a key is missing */
+    o->fps30 = 1; o->boost = 1; o->fxaa = 1; o->sharpen = 0.25f; o->aniso = 4;     /* the Thor Max set (above) when a key is missing */
 #endif
     opt_path(o->path);
     FILE *f = fopen(o->path, "rb");

@@ -11,7 +11,7 @@ Questo è un fork di [Deez-coder/SMO-android-port](https://github.com/Deez-coder
 | Cosa | Originale | Questo fork | Perché |
 |---|---|---|---|
 | Frame rate di default | 60 | **30 (velocità piena)** | Su uno Snapdragon 8 Gen 3 la modalità 60 fa 30-45 fps e il gioco rallenta. L'8 Gen 2 è più lento: 60 stabili non sono raggiungibili, 30 sì. |
-| CPU boost | auto | **sempre attivo** | Il limite è la CPU: il governor tiene bassi i core medi. Il boost li tiene su (+4-5 fps nelle scene pesanti). L'originale lo spegne per il calore; il Thor ha la ventola. |
+| CPU boost | auto | **auto + guardia termica** | Il limite è la CPU: il boost tiene su i core medi (+4-5 fps nelle scene pesanti) solo quando i frame sono in ritardo, e si spegne da solo quando Android segnala calore "moderate". |
 | Risoluzione | 1080p docked | 1080p docked (invariata) | È la risoluzione esatta dello schermo del Thor. Di più vuol dire supersampling: tanta GPU per un guadagno minimo. |
 | Anti-aliasing / nitidezza | off / 0 | **FXAA + 25%** | Bordi puliti a costo quasi nullo, la nitidezza recupera il dettaglio. |
 | Filtro anisotropico | gioco | **4x** | Texture più nitide in obliquo, costa pochissimo. |

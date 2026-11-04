@@ -181,6 +181,26 @@ static void spin_test_poll(void) {
  * then it goes off to see whether the frames keep up without it. A view that is still heavy turns it back on within
  * seconds, and then it stays on twice as long (at most 2 minutes) before the next look. boost = on: always on.
  * SMO_SPINHOT_US or SMO_SPIN_TEST set: the spin they give, nothing automatic. */
+/* Fork for the AYN Thor Max: the boost gives way to heat. Android's thermal status (AThermal) is read once a second;
+ * from "moderate" (2) on the spin is off whatever the mode, and comes back when the status is below that again (SMO_BOOST_THERMAL=<status>: the status that turns it off, 1..6; 0: no thermal guard). So the boost takes the
+ * frames it can while the device is cool and the fan keeps up, and never pushes a hot device further (heat, then the
+ * system's own throttling, cost more frames than the spin wins). */
+static int thermal_now(void) {
+    static AThermalManager *m;
+    static int tried;
+    if (!tried) { tried = 1; m = AThermal_acquireManager(); }
+    return m ? (int)AThermal_getCurrentThermalStatus(m) : -1;
+}
+static int boost_thermal_block(void) {
+    static int limit = -1, blocked;
+    if (limit < 0) { const char *e = getenv("SMO_BOOST_THERMAL"); limit = e && e[0] ? atoi(e) : 2; }
+    if (limit <= 0) return 0;
+    int ts = thermal_now();
+    if (ts < 0) return 0;
+    if (!blocked && ts >= limit) { blocked = 1; printf("android_perf: CPU boost held off: thermal status %d (from %d on the boost gives way to heat)%c", ts, limit, 10); }
+    else if (blocked && ts < limit) { blocked = 0; printf("android_perf: CPU boost allowed again: thermal status %d%c", ts, 10); }
+    return blocked;
+}
 #define BOOST_SPIN_NS   16000000
 #define BOOST_HOLD_NS   10000000000LL
 #define BOOST_HOLD_MAX  120000000000LL
@@ -196,11 +216,18 @@ static void boost_frame(int64_t now, int64_t dt) {
         printf("android_perf: CPU boost %s%c", mode == 2 ? "on (graphics.ini boost = on: the frame's threads always spin)" : mode ? "auto (the frame's threads spin while the frames are late)" : "off", 10);
         if (mode) plat_spinhot_set_ns(mode == 2 ? BOOST_SPIN_NS : 0);
     }
-    if (mode != 1 || dt <= 0 || dt > 100000000) return;
+    if (!mode || dt <= 0 || dt > 100000000) return;
     if (!win_n) win_start = now;
     win_sum += dt;
     win_n++;
     if (now - win_start < 1000000000) return;
+    {   /* once a second: the thermal guard (both modes) */
+        static int held;
+        int block = boost_thermal_block();
+        if (block && !held) { held = 1; plat_spinhot_set_ns(0); on = 0; slow_run = 0; }
+        else if (!block && held) { held = 0; if (mode == 2) plat_spinhot_set_ns(BOOST_SPIN_NS); }
+        if (held || mode == 2) { win_sum = 0; win_n = 0; return; }
+    }
     int slow = win_sum > (int64_t)win_n * target / 100 * 105;
     double fps = win_n * 1e9 / (double)win_sum;
     win_sum = 0;
