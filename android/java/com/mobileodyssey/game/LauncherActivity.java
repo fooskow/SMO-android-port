@@ -195,9 +195,9 @@ public class LauncherActivity extends Activity {
         imp.addView(space(10));
         imp.addView(text("Or the folders you extracted yourself (ExeFS and RomFS of 1.0.0, e.g. with hactool):", 12, DIM, false));
         imp.addView(space(4));
-        Button ex = button("Import ExeFS folder…", CARD2);
-        ex.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_EXEFS));
-        imp.addView(ex, new LinearLayout.LayoutParams(-1, dp(48)));
+        Button exb = button("Import ExeFS folder…", CARD2);
+        exb.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_EXEFS));
+        imp.addView(exb, new LinearLayout.LayoutParams(-1, dp(48)));
         imp.addView(space(6));
         Button rf = button("Import RomFS folder…", CARD2);
         rf.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_ROMFS));
