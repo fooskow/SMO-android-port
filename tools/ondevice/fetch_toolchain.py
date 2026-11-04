@@ -19,7 +19,9 @@ import sys
 import tarfile
 import urllib.request
 
-REPO_URL = 'https://packages-cf.termux.dev/apt/termux-main'
+MIRRORS = ['https://packages-cf.termux.dev/apt/termux-main', 'https://packages.termux.dev/apt/termux-main',
+           'https://grimler.se/termux/termux-main', 'https://mirror.mwt.me/termux/main']
+REPO_URL = MIRRORS[0]
 WANT = ['clang', 'lld', 'python']
 SKIP = {'ndk-sysroot', 'binutils-is-llvm', 'make', 'termux-tools', 'termux-exec', 'termux-keyring', 'dash', 'bash',
         'coreutils', 'dpkg', 'apt', 'gpgv', 'grep', 'sed', 'tar', 'gzip', 'less', 'procps', 'psmisc', 'findutils',
@@ -34,9 +36,22 @@ DROP = [r'^share/(man|doc|info|locale|LICENSES)/', r'^lib/python3\.\d+/(test|idl
 
 
 def get(url):
-    print('GET', url, flush=True)
-    with urllib.request.urlopen(url, timeout=120) as r:
-        return r.read()
+    """url under REPO_URL; on an error the next mirror (and it stays the one used)."""
+    global REPO_URL
+    rel = url[len(REPO_URL):]
+    last = None
+    for m in [REPO_URL] + [x for x in MIRRORS if x != REPO_URL]:
+        try:
+            print('GET', m + rel, flush=True)
+            req = urllib.request.Request(m + rel, headers={'User-Agent': 'apt/2.7 (thor-build)'})
+            with urllib.request.urlopen(req, timeout=120) as r:
+                data = r.read()
+            REPO_URL = m
+            return data
+        except Exception as e:      # noqa: BLE001
+            print('  failed:', e, flush=True)
+            last = e
+    raise last
 
 
 def packages(arch):
