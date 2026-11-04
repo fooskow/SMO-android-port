@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include "plat.h"
@@ -319,6 +320,29 @@ static void *game_thread(void *arg) {
     _exit(code);
     return NULL;
 }
+/* Fork for the AYN Thor Max: the pipeline cache is also written while the game runs, every 90 s (SMO_PCACHE_AUTOSAVE_S=<s>;
+ * 0: never), not only when the game goes to the background or is left. Pipelines made on the first visit to an area
+ * (the hitch of that visit) were lost when the game ended any other way (a crash, the battery, the task killed from
+ * the recents screen before onStop ran), so the next start made them, and hitched, again. nvn_vk_pcache_save writes
+ * only when the driver's data has grown (the size of the file against the driver's), and this thread waits until the
+ * pipelines made ahead at the start are all made, so the start's own writing is left to that path. Low priority: the
+ * read-out of ~30 MB takes ~13 ms (measured upstream on the S24 Ultra) and must not compete with the frame's threads. */
+static void *pcache_autosave(void *arg) {
+    (void)arg;
+    const char *e = getenv("SMO_PCACHE_AUTOSAVE_S");
+    int every = e && e[0] ? atoi(e) : 90;
+    if (every <= 0) { printf("smo: pipeline cache autosave off (SMO_PCACHE_AUTOSAVE_S=0)%c", 10); return NULL; }
+    if (every < 30) every = 30;
+    setpriority(PRIO_PROCESS, (id_t)gettid(), 10);
+    printf("smo: pipeline cache autosave every %d s while the game runs%c", every, 10);
+    for (;;) {
+        sleep((unsigned)every);
+        long long done = 0, total = 0;
+        if (!nvn_vk_load_progress(&done, &total) && total > 0) continue;      /* the start's pipelines made ahead are still being made */
+        nvn_vk_pcache_save("periodic");
+    }
+    return NULL;
+}
 static int need_file(const char *rel) {
     char p[PLAT_MAX_PATH];
     snprintf(p, sizeof p, "%s/%s", g_root, rel);
@@ -418,6 +442,7 @@ void android_main(struct android_app *app) {
         pthread_attr_setstacksize(&a, 64 << 20);
         pthread_create(&t, &a, game_thread, NULL);
         pthread_attr_destroy(&a);
+        if (pthread_create(&t, NULL, pcache_autosave, NULL) == 0) pthread_detach(t);
     } else printf("smo: the game's files are not in %s: see BUILDING.md (tools/android/push_data.py)\n", g_root);
     for (;;) {
         int events, id;

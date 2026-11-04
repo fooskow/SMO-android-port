@@ -50,7 +50,10 @@ def target_flags(abi):
     # arm64: ARMv8.2-A (every arm64 phone core since about 2018: Cortex-A55/A75 on) - atomics as LSE instructions instead
     # of calls to the outline helpers (__aarch64_cas4_acq ..., 3-10% of the game's threads on a Galaxy S24 Ultra), tuned
     # for the Cortex-A720 cores the game's threads run on
-    extra = ['-march=armv8.2-a', '-mtune=cortex-a720'] if abi == 'arm64-v8a' else []
+    # Fork for the AYN Thor Max: tuned for its Snapdragon 8 Gen 2 instead, whose game threads run on Cortex-A715/A710
+    # (the instruction set stays ARMv8.2-A: tuning changes scheduling only, never which instructions are used).
+    # SMO_MTUNE=<cpu> overrides it.
+    extra = ['-march=armv8.2-a', '-mtune=' + os.environ.get('SMO_MTUNE', 'cortex-a715')] if abi == 'arm64-v8a' else []
     return ['--target=%s%d' % (ABIS[abi], API)] + extra + prefix_maps()
 
 

@@ -2170,7 +2170,7 @@ void nvn_vk_pcache_save(const char *why) {
         printf("nvn_vk: pipeline cache, %s: the driver has %llu KB, the file %llu KB: writing it\n", why, (unsigned long long)(n >> 10), (unsigned long long)(fsize >> 10));
         fflush(stdout);
         pcache_save_at(3, plat_atomic_xchg(&g_pcsave_want, 0));
-    } else printf("nvn_vk: pipeline cache, %s: nothing new (%llu KB)\n", why, (unsigned long long)(n >> 10));
+    } else if (strcmp(why, "periodic")) printf("nvn_vk: pipeline cache, %s: nothing new (%llu KB)\n", why, (unsigned long long)(n >> 10));      /* the periodic look (android_main.c) says nothing when there is nothing to write */
     fflush(stdout);
     plat_atomic_xchg(&g_pcsave_busy, 0);
 }

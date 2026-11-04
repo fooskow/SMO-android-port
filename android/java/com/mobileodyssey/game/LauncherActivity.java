@@ -141,7 +141,7 @@ public class LauncherActivity extends Activity {
         card.addView(statusLine("Game files", have ? "installed" : "missing", have ? OK : WARN));
         card.addView(statusLine("Graphics driver", driverStatus(), DIM));
         Ini g = new Ini(new File(config, "graphics.ini"));
-        card.addView(statusLine("Frame rate", "30".equals(g.get("frame_rate", "60")) ? "30 fps (full game speed)" : "60 fps", DIM));
+        card.addView(statusLine("Frame rate", "30".equals(g.get("frame_rate", "30")) ? "30 fps (full game speed)" : "60 fps", DIM));
         String rsv = g.get("resolution_scale", "auto");
         card.addView(statusLine("Resolution", "auto".equalsIgnoreCase(rsv) ? ("handheld".equalsIgnoreCase(g.get("console_mode", "docked")) ? "1280x720 (console)" : "1920x1080 (console)") : Math.round(parse(rsv, 1f) * 100) + "% of the game's size", DIM));
         card.addView(space(16));
@@ -226,17 +226,40 @@ public class LauncherActivity extends Activity {
         content.addView(sv);
     }
 
+    /* Fork for the AYN Thor Max: the settings that suit it, written in one go (also over a graphics.ini from an older
+     * install, which keeps its own values otherwise). */
+    static final String[][] THOR_MAX = {
+            {"frame_rate", "30"}, {"fps_cap", "60"}, {"boost", "on"}, {"shader_wait", "hold"},
+            {"console_mode", "docked"}, {"resolution_scale", "auto"},
+            {"anti_aliasing", "fxaa"}, {"sharpening", "25"}, {"anisotropic_filtering", "4"},
+            {"vsync", "clock"}, {"driver", "custom"}};
+    void applyThorMax(Ini g) { for (String[] kv : THOR_MAX) g.set(kv[0], kv[1]); }
+    boolean isThorMax(Ini g) { for (String[] kv : THOR_MAX) if (!kv[1].equalsIgnoreCase(g.get(kv[0], kv[1]))) return false; return true; }
+
     void graphicsPage() {
         Ini g = new Ini(new File(config, "graphics.ini"));
+        LinearLayout t = card();
+        t.addView(header("AYN Thor Max"));
+        boolean on = isThorMax(g);
+        t.addView(statusLine("Recommended set", on ? "in use" : "changed", on ? OK : DIM));
+        t.addView(text("30 fps at full game speed, CPU boost always on (the fan takes the heat), docked at the screen's own "
+                + "1920x1080, FXAA with 25% sharpening, 4x anisotropic filtering, the custom driver when one is installed "
+                + "(Mesa Turnip runs this game clearly faster than the stock Adreno driver). In the AYN menu set the "
+                + "performance mode to its highest and the fan to a strong curve.", 12, DIM, false));
+        t.addView(space(8));
+        Button tb = button(on ? "Apply again" : "Apply the Thor Max set", on ? CARD2 : ACCENT);
+        tb.setOnClickListener(v -> { applyThorMax(new Ini(new File(config, "graphics.ini"))); toast("Thor Max settings applied"); show(1); });
+        t.addView(tb, new LinearLayout.LayoutParams(-1, dp(48)));
+        content.addView(t);
         LinearLayout c = card();
         c.addView(header("Performance"));
-        c.addView(choice(g, "frame_rate", "Frame rate", new String[]{"60", "30"}, new String[]{"60 fps", "30 fps, full speed"}, "60",
+        c.addView(choice(g, "frame_rate", "Frame rate", new String[]{"60", "30"}, new String[]{"60 fps", "30 fps, full speed"}, "30",
                 "30 draws half the frames and runs the game's logic twice per frame, so it never plays in slow motion."));
         c.addView(slider(g, "fps_cap", "FPS limit", 20, 60, 5, 60, "", 1f,
                 "60 = no limit. WARNING: the game advances one step per frame, so any limit below 60 makes it run in slow "
                 + "motion (at 40, two thirds of its speed). Only \"30 fps, full speed\" above keeps normal speed; when it is "
                 + "chosen, this limit is not used."));
-        c.addView(choice(g, "boost", "CPU boost", new String[]{"auto", "on", "off"}, new String[]{"Auto", "Always", "Off"}, "auto",
+        c.addView(choice(g, "boost", "CPU boost", new String[]{"auto", "on", "off"}, new String[]{"Auto", "Always", "Off"}, "on",
                 "Keeps the phone's CPU clocks up so heavy scenes hold the frame rate. Auto: only while frames are late. Always: everywhere, warmer."));
         c.addView(choice(g, "shader_wait", "New shaders", new String[]{"hold", "skip"}, new String[]{"Wait", "Skip until ready"}, "hold",
                 "Skip avoids a stutter the first time an effect appears; the effect is missing for a moment instead."));
@@ -262,12 +285,12 @@ public class LauncherActivity extends Activity {
 
         LinearLayout q = card();
         q.addView(header("Quality"));
-        q.addView(choice(g, "anti_aliasing", "Anti-aliasing", new String[]{"off", "fxaa"}, new String[]{"Off", "FXAA"}, "off",
+        q.addView(choice(g, "anti_aliasing", "Anti-aliasing", new String[]{"off", "fxaa"}, new String[]{"Off", "FXAA"}, "fxaa",
                 "FXAA smooths jagged edges on the final picture. Cheap; the picture gets a little softer."));
-        q.addView(slider(g, "sharpening", "Sharpening", 0, 100, 5, 0, "%", 1f,
+        q.addView(slider(g, "sharpening", "Sharpening", 0, 100, 5, 25, "%", 1f,
                 "Contrast-adaptive: brings back fine detail (useful with FXAA or a high resolution scale) without hardening edges. 0 = off."));
         q.addView(choice(g, "anisotropic_filtering", "Anisotropic filtering", new String[]{"game", "2", "4", "8", "16"},
-                new String[]{"Game", "2x", "4x", "8x", "16x"}, "game", "Sharper textures at an angle; costs a little GPU time."));
+                new String[]{"Game", "2x", "4x", "8x", "16x"}, "4", "Sharper textures at an angle; costs a little GPU time."));
         content.addView(q);
 
         LinearLayout d = card();

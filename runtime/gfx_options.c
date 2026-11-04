@@ -12,6 +12,24 @@
 #include <string.h>
 #include "gfx_options.h"
 
+/* Fork for the AYN Thor Max (Snapdragon 8 Gen 2 / Adreno 740, 1920x1080 screen, active cooling): on Android the file is
+ * first written with the set for that device: the 30 fps mode (full game speed: the CPU, not the GPU, limits the frame
+ * rate, and 60 is out of reach on this chip), the CPU boost always on (the fan carries the extra heat), docked at the
+ * screen's own 1920x1080, FXAA with light sharpening, 4x anisotropic filtering. Other platforms keep the upstream values. */
+#ifdef __ANDROID__
+#define GFX_DEF_FRAME_RATE "30"
+#define GFX_DEF_BOOST "on"
+#define GFX_DEF_AA "fxaa"
+#define GFX_DEF_SHARPEN "25"
+#define GFX_DEF_ANISO "4"
+#else
+#define GFX_DEF_FRAME_RATE "60"
+#define GFX_DEF_BOOST "auto"
+#define GFX_DEF_AA "off"
+#define GFX_DEF_SHARPEN "0"
+#define GFX_DEF_ANISO "game"
+#endif
+
 static const char *const k_default_ini =
 "; graphics.ini: display and rendering options of the native build (read once at start by gfx_options.c).\r\n"
 "; Delete the file to get it written again with these defaults. A line starting with ';' is a comment.\r\n"
@@ -62,7 +80,7 @@ static const char *const k_default_ini =
 "; frame_rate = 60 | 30\r\n"
 ";   60: the console's frame rate. 30: 30 frames a second are drawn and the game's logic runs twice for each of them,\r\n"
 ";   so the game keeps its full speed (for a device that cannot draw 60). Animation is less smooth.\r\n"
-"frame_rate = 60\r\n"
+"frame_rate = " GFX_DEF_FRAME_RATE "\r\n"
 "\r\n"
 "; fps_cap = 60      at most this many frames a second (20 .. 60; 60 = no limit). The game advances one step per\r\n"
 ";   frame, so below 60 it runs in slow motion; frame_rate = 30 keeps full speed and is used instead when set.\r\n"
@@ -71,13 +89,13 @@ static const char *const k_default_ini =
 "; boost = auto | on | off      (Android) auto: while frames come later than the frame rate asks, the threads that set it\r\n"
 ";   keep their CPUs busy instead of sleeping, so the phone raises the clocks (more fps in heavy scenes, more heat\r\n"
 ";   while it is on); it stops by itself when the frames are on time again. on: always, also where it gains nothing.\r\n"
-"boost = auto\r\n"
+"boost = " GFX_DEF_BOOST "\r\n"
 "\r\n"
 "; anti_aliasing = off | fxaa      (Vulkan) fxaa: edges smoothed on the final picture; a little softer, cheap\r\n"
-"anti_aliasing = off\r\n"
+"anti_aliasing = " GFX_DEF_AA "\r\n"
 "\r\n"
 "; sharpening = 0 .. 100      (Vulkan) contrast-adaptive: detail sharper, hard edges left alone (0 = off)\r\n"
-"sharpening = 0\r\n"
+"sharpening = " GFX_DEF_SHARPEN "\r\n"
 
 "\r\n"
 "; fps_counter = on | off      (Android: the frame rate in the corner)\r\n"
@@ -89,7 +107,7 @@ static const char *const k_default_ini =
 "; anisotropic_filtering = game | 2 | 4 | 8 | 16      (Vulkan)\r\n"
 ";   game: each texture sampler keeps the value the game gave it. A number: at least that much on every sampler that\r\n"
 ";   filters between mip levels (sharper textures at flat angles; changes the picture, costs little on any GPU).\r\n"
-"anisotropic_filtering = game\r\n"
+"anisotropic_filtering = " GFX_DEF_ANISO "\r\n"
 "\r\n"
 "; shader_wait = hold | skip      (Vulkan)\r\n"
 ";   What happens when a draw needs a shader or pipeline that is not ready yet (mostly the first time something is shown\r\n"
@@ -147,6 +165,9 @@ static void opt_load(void) {
     int written = 0, unknown = 0;
     memset(o, 0, sizeof *o);
     o->width = 1280; o->height = 720; o->scale = 0.0f; o->window_mode = 3; o->fps_counter = 1; o->dynres = 1; o->boost = 1;
+#ifdef __ANDROID__
+    o->fps30 = 1; o->boost = 2; o->fxaa = 1; o->sharpen = 0.25f; o->aniso = 4;     /* the Thor Max set (above) when a key is missing */
+#endif
     opt_path(o->path);
     FILE *f = fopen(o->path, "rb");
     if (!f) {

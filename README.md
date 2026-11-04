@@ -1,3 +1,6 @@
+> **Fork per AYN Thor Max** (Snapdragon 8 Gen 2): impostazioni di default per il Thor, salvataggio periodico della cache
+> shader e uno script che compila l'APK in un comando. Leggi **[THOR_MAX.md](THOR_MAX.md)**.
+
 the one official source of this port, anywhere else is NOT done by me
 # SMO Android Port
 

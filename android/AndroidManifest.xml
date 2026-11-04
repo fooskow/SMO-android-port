@@ -5,7 +5,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.mobileodyssey.game"
     android:versionCode="1"
-    android:versionName="0.1.0">
+    android:versionName="0.1.0-thor">
 
     <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
     <!-- Vulkan 1.3: what the renderer asks of a device (runtime/nvn_vk.c) -->
