@@ -17,6 +17,7 @@ Questo è un fork di [Deez-coder/SMO-android-port](https://github.com/Deez-coder
 | Filtro anisotropico | gioco | **4x** | Texture più nitide in obliquo, costa pochissimo. |
 | Cache shader/pipeline | salvata quando esci o vai in background | **anche ogni 90 s mentre giochi** (solo se è cresciuta) | Così le pipeline delle zone nuove non si perdono se l'app crasha o viene chiusa male, e lo scatto della prima visita non si ripete. `SMO_PCACHE_AUTOSAVE_S=0` in `config/env.txt` lo disattiva. |
 | Ottimizzazione del compilatore | Cortex-A720 (8 Gen 3) | **Cortex-A715** (8 Gen 2) | Ottimizza l'ordine delle istruzioni per i core su cui girano i thread del gioco. Il set di istruzioni non cambia, quindi non c'è rischio di crash. |
+| Compilazione | sul PC | **sul Thor**, dentro l'app | L'APK si scarica dal tuo GitHub (Releases) e non contiene niente del gioco. |
 | Launcher | – | scheda **AYN Thor Max** nella pagina Graphics | Un pulsante riapplica le impostazioni consigliate, anche sopra un `graphics.ini` di una vecchia installazione. |
 
 ## Aspettative oneste
@@ -27,6 +28,25 @@ Questo è un fork di [Deez-coder/SMO-android-port](https://github.com/Deez-coder
   impostazione grafica lo risolve.
 - Queste modifiche **non sono state provate su un Thor**: chi le ha scritte non aveva né il dispositivo né il gioco. Se
   qualcosa non va, esporta i log (vedi in fondo).
+
+## Senza PC: compilazione direttamente sul Thor (consigliato)
+
+L'APK di questo fork **non contiene codice del gioco**. Contiene un compilatore (clang + Python) e i sorgenti del
+runtime. Il gioco lo compila il Thor stesso, partendo dal **tuo** ExeFS.
+
+1. **Scarica l'APK** dall'ultima Release del repo: https://github.com/fooskow/SMO-android-port/releases/latest
+   (`Odyssey-Thor.apk`). Se avevi l'APK originale: esporta il salvataggio e disinstallalo, le firme sono diverse.
+2. **Game → Import ExeFS folder…**: scegli la cartella dell'ExeFS di 1.0.0 (quella con `main`, `main.npdm`, `sdk`...).
+3. **Game → Import RomFS folder…**: scegli la cartella della RomFS (5 GB: ci mette qualche minuto).
+4. **Build the game**: compila in background, anche a schermo spento, con una notifica che mostra il passaggio in corso.
+   Tienilo **in carica e al fresco**: è un'ora abbondante con la CPU piena. Si fa una volta sola. Se si interrompe,
+   riparte dal passaggio dove era arrivato.
+5. **Play**.
+
+Con gli aggiornamenti dell'app si ricompila solo la parte cambiata (il runtime), quindi pochi minuti.
+Se qualcosa va storto: **Build log** nella stessa scheda.
+
+## In alternativa: compilazione sul PC
 
 ## 1. Preparare il PC (Windows, una volta sola)
 
