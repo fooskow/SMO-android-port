@@ -35,7 +35,7 @@ L'APK di questo fork **non contiene codice del gioco**. Contiene un compilatore 
 runtime. Il gioco lo compila il Thor stesso, partendo dal **tuo** ExeFS.
 
 1. **Scarica l'APK** dall'ultima Release del repo: https://github.com/fooskow/SMO-android-port/releases/latest
-   (`Odyssey-Thor.apk`). Se avevi l'APK originale: esporta il salvataggio e disinstallalo, le firme sono diverse.
+   (il file `.apk` sotto "Assets"). Se avevi l'APK originale: esporta il salvataggio e disinstallalo, le firme sono diverse.
 2. **Game → Import ExeFS folder…**: scegli la cartella dell'ExeFS di 1.0.0 (quella con `main`, `main.npdm`, `sdk`...).
 3. **Game → Import RomFS folder…**: scegli la cartella della RomFS (5 GB: ci mette qualche minuto).
 4. **Build the game**: compila in background, anche a schermo spento, con una notifica che mostra il passaggio in corso.
