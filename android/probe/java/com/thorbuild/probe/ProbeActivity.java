@@ -65,6 +65,7 @@ public class ProbeActivity extends Activity {
             File work = new File(getFilesDir(), "probe");
             deleteTree(work);
             work.mkdirs();
+            new File(work, "tmp").mkdirs();          /* named semaphores: /proc/self/cwd/tmp (fetch_toolchain.py) */
             File src = new File(work, "hello.c"), lib = new File(work, "libhello.so");
             write(src, "#include <jni.h>\n#include <pthread.h>\n#include <sys/mman.h>\n"
                     + "static int twice(int x) { return 2 * x; }\n"

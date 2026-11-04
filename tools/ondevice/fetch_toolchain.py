@@ -30,7 +30,7 @@ SKIP = {'ndk-sysroot', 'binutils-is-llvm', 'make', 'termux-tools', 'termux-exec'
         'resolv-conf', 'libgnutls', 'sqlite', 'gdbm', 'tcl', 'tk', 'libx11'}
 PREFIX = 'data/data/com.termux/files/usr/'
 DROP = [r'^share/(man|doc|info|locale|LICENSES)/', r'^lib/python3\.\d+/(test|idlelib|tkinter|turtledemo|ensurepip|lib2to3|pydoc_data)/',
-        r'/__pycache__/', r'^include/(?!python)', r'^lib/.*\.a$', r'^bin/(clang-check|clang-tidy|clangd|clang-format|lldb|scan-|c-index|diagtool|'
+        r'/__pycache__/', r'^include/(?!python)', r'^lib/(?!clang/).*\.a$', r'^bin/(clang-check|clang-tidy|clangd|clang-format|lldb|scan-|c-index|diagtool|'
         r'clang-(apply|change|doc|extdef|include|linker|move|nvlink|offload|query|refactor|rename|reorder|repl|scan|tblgen))',
         r'^lib/libclang\.so', r'^lib/liblldb', r'^share/(clang|scan-)', r'^opt/']
 
@@ -163,6 +163,34 @@ def main():
     if os.path.isdir(arch_dir):
         for n in os.listdir(arch_dir):
             shutil.copy2(os.path.join(arch_dir, n), ndk_rt_dst)
+    # The compiler's runtime where clang >= 20 looks for it for an Android target (lib/clang/<v>/lib/<triple>/):
+    # the NDK's builtins and unwinder, which match the NDK's sysroot.
+    ndk_linux = os.path.join(rt, sorted(os.listdir(rt))[-1], 'lib', 'linux')
+    tc_clang = os.path.join(a.out, 'lib', 'clang')
+    for v in os.listdir(tc_clang):
+        for t in ('%s-unknown-linux-android%s' % (a.arch, a.api), '%s-unknown-linux-android' % a.arch):
+            d = os.path.join(tc_clang, v, 'lib', t)
+            os.makedirs(d, exist_ok=True)
+            shutil.copy2(os.path.join(ndk_linux, 'libclang_rt.builtins-%s-android.a' % a.arch), os.path.join(d, 'libclang_rt.builtins.a'))
+            shutil.copy2(os.path.join(ndk_linux, a.arch, 'libunwind.a'), os.path.join(d, 'libunwind.a'))
+    # Named POSIX semaphores (Python's multiprocessing) are files under Termux's tmp folder, a path compiled into
+    # libandroid-posix-semaphore: pointed at the current folder's instead (/proc/self/cwd/...), padded with zeros.
+    for d, _, ns in os.walk(os.path.join(a.out, 'lib')):
+        for n in ns:
+            f = os.path.join(d, n)
+            if os.path.islink(f) or not n.startswith('libandroid-posix-semaphore'):
+                continue
+            b = bytearray(open(f, 'rb').read())
+            old = b'/data/data/com.termux/files/usr'
+            i = b.find(old)
+            while i >= 0:
+                end = b.index(b'\0', i)
+                s0 = bytes(b[i:end])
+                s1 = b'/proc/self/cwd' + s0[len(old):]
+                b[i:end] = s1 + b'\0' * (len(s0) - len(s1))
+                print('patched %s: %s -> %s' % (n, s0.decode(), s1.decode()))
+                i = b.find(old, i + 1)
+            open(f, 'wb').write(b)
     size = sum(os.path.getsize(os.path.join(d, n)) for d, _, ns in os.walk(a.out) for n in ns if not os.path.islink(os.path.join(d, n)))
     print('toolchain: %.0f MB in %s' % (size / 2 ** 20, a.out))
     if a.tar:
